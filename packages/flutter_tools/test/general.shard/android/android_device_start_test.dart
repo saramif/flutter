@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// @dart = 2.8
-
 import 'package:file/memory.dart';
 import 'package:flutter_tools/src/android/android_device.dart';
 import 'package:flutter_tools/src/android/android_sdk.dart';
@@ -42,12 +40,12 @@ const FakeCommand kShaCommand = FakeCommand(
 );
 
 void main() {
-  FileSystem fileSystem;
-  FakeProcessManager processManager;
-  AndroidSdk androidSdk;
+  late FileSystem fileSystem;
+  late FakeProcessManager processManager;
+  late AndroidSdk androidSdk;
 
   setUp(() {
-    processManager = FakeProcessManager.list(<FakeCommand>[]);
+    processManager = FakeProcessManager.empty();
     fileSystem = MemoryFileSystem.test();
     androidSdk = FakeAndroidSdk();
   });
@@ -64,7 +62,7 @@ void main() {
         fileSystem: fileSystem,
         processManager: processManager,
         logger: BufferLogger.test(),
-        platform: FakePlatform(operatingSystem: 'linux'),
+        platform: FakePlatform(),
         androidSdk: androidSdk,
       );
       final File apkFile = fileSystem.file('app.apk')..createSync();
@@ -130,7 +128,7 @@ void main() {
       fileSystem: fileSystem,
       processManager: processManager,
       logger: BufferLogger.test(),
-      platform: FakePlatform(operatingSystem: 'linux'),
+      platform: FakePlatform(),
       androidSdk: androidSdk,
     );
     final File apkFile = fileSystem.file('app.apk')..createSync();
@@ -168,7 +166,7 @@ void main() {
       fileSystem: fileSystem,
       processManager: processManager,
       logger: BufferLogger.test(),
-      platform: FakePlatform(operatingSystem: 'linux'),
+      platform: FakePlatform(),
       androidSdk: androidSdk,
     );
     final File apkFile = fileSystem.file('app.apk')..createSync();
@@ -191,8 +189,6 @@ void main() {
     processManager.addCommand(const FakeCommand(
       command: <String>['adb', '-s', '1234', 'shell', 'pm', 'list', 'packages', '--user', '10', 'FlutterApp'],
     ));
-    // TODO(jonahwilliams): investigate why this doesn't work.
-    // This doesn't work with the current Android log reader implementation.
     processManager.addCommand(const FakeCommand(
       command: <String>[
         'adb',
@@ -240,7 +236,8 @@ void main() {
         '--ez', 'enable-software-rendering', 'true',
         '--ez', 'skia-deterministic-rendering', 'true',
         '--ez', 'trace-skia', 'true',
-        '--ez', 'trace-allowlist', 'bar,baz',
+        '--es', 'trace-allowlist', 'bar,baz',
+        '--es', 'trace-skia-allowlist', 'skia.a,skia.b',
         '--ez', 'trace-systrace', 'true',
         '--ez', 'endless-trace-buffer', 'true',
         '--ez', 'dump-skp-on-shader-compilation', 'true',
@@ -270,6 +267,7 @@ void main() {
         skiaDeterministicRendering: true,
         traceSkia: true,
         traceAllowlist: 'bar,baz',
+        traceSkiaAllowlist: 'skia.a,skia.b',
         traceSystrace: true,
         endlessTraceBuffer: true,
         dumpSkpOnShaderCompilation: true,

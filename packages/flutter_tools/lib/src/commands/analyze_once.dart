@@ -125,7 +125,12 @@ class AnalyzeOnce extends AnalyzeBase {
       // Completing the future in the callback can't fail.
       unawaited(server.onExit.then<void>((int exitCode) {
         if (!analysisCompleter.isCompleted) {
-          analysisCompleter.completeError('analysis server exited: $exitCode');
+          analysisCompleter.completeError(
+            // Include the last 20 lines of server output in exception message
+            Exception(
+              'analysis server exited with code $exitCode and output:\n${server.getLogs(20)}',
+            ),
+          );
         }
       }));
 
@@ -147,14 +152,9 @@ class AnalyzeOnce extends AnalyzeBase {
       timer?.stop();
     }
 
-    final int undocumentedMembers = AnalyzeBase.countMissingDartDocs(errors);
-    if (!isDartDocs) {
-      errors.removeWhere((AnalysisError error) => error.code == 'public_member_api_docs');
-    }
-
     // emit benchmarks
     if (isBenchmarking) {
-      writeBenchmark(timer, errors.length, undocumentedMembers);
+      writeBenchmark(timer, errors.length);
     }
 
     // --write
@@ -171,12 +171,9 @@ class AnalyzeOnce extends AnalyzeBase {
 
     final int errorCount = errors.length;
     final String seconds = (timer.elapsedMilliseconds / 1000.0).toStringAsFixed(1);
-    final String dartDocMessage = AnalyzeBase.generateDartDocMessage(undocumentedMembers);
     final String errorsMessage = AnalyzeBase.generateErrorsMessage(
       issueCount: errorCount,
       seconds: seconds,
-      undocumentedMembers: undocumentedMembers,
-      dartDocMessage: dartDocMessage,
     );
 
     if (errorCount > 0) {

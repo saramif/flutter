@@ -11,9 +11,9 @@ import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/platform.dart';
 import 'package:flutter_tools/src/build_info.dart';
 import 'package:flutter_tools/src/cache.dart';
+import 'package:flutter_tools/src/flutter_plugins.dart';
 import 'package:flutter_tools/src/ios/xcodeproj.dart';
 import 'package:flutter_tools/src/macos/cocoapods.dart';
-import 'package:flutter_tools/src/plugins.dart';
 import 'package:flutter_tools/src/project.dart';
 import 'package:flutter_tools/src/reporting/reporting.dart';
 import 'package:test/fake.dart';
@@ -68,7 +68,7 @@ void main() {
   setUp(() async {
     Cache.flutterRoot = 'flutter';
     fileSystem = MemoryFileSystem.test();
-    fakeProcessManager = FakeProcessManager.list(<FakeCommand>[]);
+    fakeProcessManager = FakeProcessManager.empty();
     logger = BufferLogger.test();
     usage = TestUsage();
     cocoaPodsUnderTest = CocoaPods(
@@ -287,6 +287,32 @@ void main() {
       expect(releaseContents, isNot(contains('#include?')));
       expect(releaseContents, equals(legacyReleaseInclude));
     });
+
+    testUsingContext('does not include Pod config in xcconfig files, if flavor include present', () async {
+      final FlutterProject projectUnderTest = setupProjectUnderTest();
+      projectUnderTest.ios.podfile..createSync()..writeAsStringSync('Existing Podfile');
+
+      const String flavorDebugInclude = '#include? "Pods/Target Support Files/Pods-Free App/Pods-Free App.debug free.xcconfig"';
+      projectUnderTest.ios.xcodeConfigFor('Debug')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(flavorDebugInclude);
+      const String flavorReleaseInclude = '#include? "Pods/Target Support Files/Pods-Free App/Pods-Free App.release free.xcconfig"';
+      projectUnderTest.ios.xcodeConfigFor('Release')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(flavorReleaseInclude);
+
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.directory('project'));
+      await cocoaPodsUnderTest.setupPodfile(project.ios);
+
+      final String debugContents = projectUnderTest.ios.xcodeConfigFor('Debug').readAsStringSync();
+      // Redundant contains check, but this documents what we're testing--that the optional
+      // #include? doesn't get written in addition to the previous style #include.
+      expect(debugContents, isNot(contains('Pods-Runner/Pods-Runner.debug')));
+      expect(debugContents, equals(flavorDebugInclude));
+      final String releaseContents = projectUnderTest.ios.xcodeConfigFor('Release').readAsStringSync();
+      expect(releaseContents, isNot(contains('Pods-Runner/Pods-Runner.release')));
+      expect(releaseContents, equals(flavorReleaseInclude));
+    });
   });
 
   group('Update xcconfig', () {
@@ -372,7 +398,7 @@ void main() {
       final FlutterProject projectUnderTest = setupProjectUnderTest();
       fileSystem.file(fileSystem.path.join('project', 'ios', 'Podfile'))
         ..createSync()
-        ..writeAsStringSync('plugin_pods = parse_KV_file(\'../.flutter-plugins\')');
+        ..writeAsStringSync("plugin_pods = parse_KV_file('../.flutter-plugins')");
 
       await expectLater(cocoaPodsUnderTest.processPods(
         xcodeProject: projectUnderTest.ios,
@@ -396,7 +422,7 @@ void main() {
 
       projectUnderTest.macos.podfile
         ..createSync()
-        ..writeAsStringSync('plugin_pods = parse_KV_file(\'../.flutter-plugins\')');
+        ..writeAsStringSync("plugin_pods = parse_KV_file('../.flutter-plugins')");
       projectUnderTest.macos.podfileLock
         ..createSync()
         ..writeAsStringSync('Existing lock file.');
@@ -794,7 +820,7 @@ class FakeXcodeProjectInterpreter extends Fake implements XcodeProjectInterprete
   @override
   Future<Map<String, String>> getBuildSettings(
     String projectPath, {
-    String scheme,
+    XcodeProjectBuildContext buildContext,
     Duration timeout = const Duration(minutes: 1),
   }) async => buildSettings;
 
